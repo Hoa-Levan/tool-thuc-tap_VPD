@@ -1,18 +1,16 @@
 """
 VPD Analysis Tool - Ứng dụng Streamlit để phân tích VPD cho cây trồng trong nhà kính
-Main Application File
+Main Application File - Dùng thư viện mặc định Streamlit (không cần Plotly)
 """
 
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
-import plotly.graph_objects as go
-import plotly.express as px
+from datetime import datetime
+import json
 
 from docfile_logic import (
     parse_json_file, prepare_dataframe, filter_data_by_period,
-    format_date_range_display, get_data_completeness_message,
-    calculate_statistics
+    format_date_range_display, calculate_statistics
 )
 from vpd_logic import calculate_vpd, get_vpd_assessment, categorize_vpd_status
 
@@ -40,23 +38,34 @@ st.markdown("""
     .optimal {
         background-color: #d4edda;
         color: #155724;
-        padding: 10px;
-        border-radius: 5px;
+        padding: 15px;
+        border-radius: 8px;
         border-left: 5px solid #28a745;
+        margin: 10px 0;
     }
     .warning {
         background-color: #fff3cd;
         color: #856404;
-        padding: 10px;
-        border-radius: 5px;
+        padding: 15px;
+        border-radius: 8px;
         border-left: 5px solid #ffc107;
+        margin: 10px 0;
     }
     .danger {
         background-color: #f8d7da;
         color: #721c24;
-        padding: 10px;
-        border-radius: 5px;
+        padding: 15px;
+        border-radius: 8px;
         border-left: 5px solid #dc3545;
+        margin: 10px 0;
+    }
+    .info-box {
+        background-color: #cfe2ff;
+        color: #084298;
+        padding: 12px;
+        border-radius: 5px;
+        border-left: 4px solid #0d6efd;
+        margin: 8px 0;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -72,6 +81,10 @@ if 'original_df' not in st.session_state:
     st.session_state.original_df = None
 if 'file_uploaded' not in st.session_state:
     st.session_state.file_uploaded = False
+if 'selected_period' not in st.session_state:
+    st.session_state.selected_period = 'day'
+if 'reference_date' not in st.session_state:
+    st.session_state.reference_date = datetime.now()
 
 
 # ============================================================================
@@ -81,7 +94,7 @@ if 'file_uploaded' not in st.session_state:
 st.title("🌱 VPD Analysis Tool")
 st.markdown("""
     Công cụ phân tích **VPD (Vapor Pressure Deficit)** dành cho cây trồng trong nhà kính
-    - Nạp dữ liệu JSON
+    - Nạp dữ liệu JSON từ máy
     - Tính toán VPD dựa trên nhiệt độ và độ ẩm
     - Đánh giá điều kiện và đưa ra khuyến cáo
 """)
@@ -190,11 +203,11 @@ else:
     else:
         # Thông báo tính đầy đủ dữ liệu
         if not has_full_period:
-            st.warning(
-                f"⚠️ Dữ liệu không đầy đủ cho kỳ này. "
-                f"Chỉ có chỉ số từ {actual_start.strftime('%d/%m/%Y')} "
-                f"đến {actual_end.strftime('%d/%m/%Y')}"
-            )
+            st.markdown(f"""
+                <div class="info-box">
+                ⚠️ <strong>Dữ liệu không đầy đủ cho kỳ này.</strong> Chỉ có chỉ số từ <strong>{actual_start.strftime('%d/%m/%Y')}</strong> đến <strong>{actual_end.strftime('%d/%m/%Y')}</strong>
+                </div>
+                """, unsafe_allow_html=True)
         
         # Tiêu đề với khoảng ngày
         date_range_display = format_date_range_display(actual_start, actual_end, st.session_state.selected_period)
@@ -214,8 +227,7 @@ else:
             with col1:
                 st.metric(
                     label="Trung bình",
-                    value=f"{stats['mean']:.2f} kPa",
-                    delta=None
+                    value=f"{stats['mean']:.2f} kPa"
                 )
             
             with col2:
@@ -295,88 +307,41 @@ else:
         
         st.markdown("### 📉 Biểu đồ dữ liệu")
         
+        # Chuẩn bị dữ liệu cho biểu đồ
+        chart_df = filtered_df.copy()
+        chart_df['Thời gian'] = chart_df['datetime'].dt.strftime('%d/%m %H:%M')
+        chart_df = chart_df.set_index('Thời gian')
+        
         # Biểu đồ VPD
-        fig_vpd = go.Figure()
+        st.markdown("#### VPD theo thời gian")
+        vpd_chart_data = chart_df[['vpd']].rename(columns={'vpd': 'VPD (kPa)'})
+        st.line_chart(vpd_chart_data, height=300)
         
-        fig_vpd.add_trace(go.Scatter(
-            x=filtered_df['datetime'],
-            y=filtered_df['vpd'],
-            mode='lines+markers',
-            name='VPD',
-            line=dict(color='#1f77b4', width=2),
-            marker=dict(size=4)
-        ))
+        # Thêm ghi chú về khoảng tối ưu
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("""
+            **Khoảng tối ưu:** 0.8 - 1.2 kPa  
+            *Điều kiện lý tưởng cho cây*
+            """)
+        with col2:
+            st.markdown("""
+            **VPD thấp:** < 0.8 kPa  
+            *Độ ẩm cao - Tăng thông thoáng*
+            """)
+        with col3:
+            st.markdown("""
+            **VPD cao:** > 1.2 kPa  
+            *Độ ẩm thấp - Tăng tưới nước*
+            """)
         
-        # Thêm vùng tối ưu
-        fig_vpd.add_hrect(
-            y0=0.8, y1=1.2,
-            fillcolor="green", opacity=0.1,
-            layer="below", line_width=0,
-            annotation_text="Khoảng tối ưu (0.8-1.2 kPa)",
-            annotation_position="right"
-        )
+        st.markdown("#### Nhiệt độ theo thời gian")
+        temp_chart_data = chart_df[['temperature']].rename(columns={'temperature': 'Nhiệt độ (°C)'})
+        st.line_chart(temp_chart_data, height=250, color="#FF6B6B")
         
-        fig_vpd.update_layout(
-            title="VPD theo thời gian",
-            xaxis_title="Thời gian",
-            yaxis_title="VPD (kPa)",
-            hovermode="x unified",
-            height=400,
-            template="plotly_white"
-        )
-        
-        st.plotly_chart(fig_vpd, use_container_width=True)
-        
-        # Biểu đồ nhiệt độ và độ ẩm
-        fig_temp_humidity = make_subplots(
-            rows=2, cols=1,
-            subplot_titles=("Nhiệt độ", "Độ ẩm"),
-            shared_xaxes=True,
-            vertical_spacing=0.1
-        )
-        
-        from plotly.subplots import make_subplots
-        
-        fig_temp_humidity = make_subplots(
-            rows=2, cols=1,
-            subplot_titles=("Nhiệt độ", "Độ ẩm"),
-            shared_xaxes=True,
-            vertical_spacing=0.1
-        )
-        
-        fig_temp_humidity.add_trace(
-            go.Scatter(
-                x=filtered_df['datetime'],
-                y=filtered_df['temperature'],
-                mode='lines',
-                name='Nhiệt độ',
-                line=dict(color='red', width=2)
-            ),
-            row=1, col=1
-        )
-        
-        fig_temp_humidity.add_trace(
-            go.Scatter(
-                x=filtered_df['datetime'],
-                y=filtered_df['humidity'],
-                mode='lines',
-                name='Độ ẩm',
-                line=dict(color='blue', width=2)
-            ),
-            row=2, col=1
-        )
-        
-        fig_temp_humidity.update_yaxes(title_text="Nhiệt độ (°C)", row=1, col=1)
-        fig_temp_humidity.update_yaxes(title_text="Độ ẩm (%)", row=2, col=1)
-        fig_temp_humidity.update_xaxes(title_text="Thời gian", row=2, col=1)
-        
-        fig_temp_humidity.update_layout(
-            height=500,
-            hovermode="x unified",
-            template="plotly_white"
-        )
-        
-        st.plotly_chart(fig_temp_humidity, use_container_width=True)
+        st.markdown("#### Độ ẩm theo thời gian")
+        humidity_chart_data = chart_df[['humidity']].rename(columns={'humidity': 'Độ ẩm (%)'})
+        st.line_chart(humidity_chart_data, height=250, color="#4ECDC4")
         
         st.divider()
         
