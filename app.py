@@ -20,7 +20,7 @@ from vpd_logic import calculate_vpd, get_vpd_assessment, categorize_vpd_status
 # ============================================================================
 
 st.set_page_config(
-    page_title="VPD Analysis Tool",
+    page_title="Xem chỉ số của VPD",
     page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded"
