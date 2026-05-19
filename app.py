@@ -339,7 +339,8 @@ else:
             
             # Chuẩn bị dữ liệu cho biểu đồ
             chart_df = filtered_df.copy()
-            chart_df = chart_df.sort_values('datetime')
+            chart_df['datetime'] = pd.to_datetime(chart_df['datetime'])
+            chart_df = chart_df.sort_values('datetime', ascending=True)
             chart_df = chart_df.set_index('datetime')   
             
             # Biểu đồ VPD - lọc bỏ NaN
@@ -351,7 +352,7 @@ else:
             else:
                 st.warning("⚠️ Không có dữ liệu VPD hợp lệ để hiển thị")
             
-            # Thêm ghi chú về khoảng tối ưu (đổi tên biến sang dạng chart_col để tránh xung đột)
+            # Thêm ghi chú về khoảng tối ưu (giữ nguyên logic của bạn)
             chart_col1, chart_col2, chart_col3 = st.columns(3)
             with chart_col1:
                 st.markdown("""
