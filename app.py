@@ -179,6 +179,25 @@ with st.sidebar:
             min_value=min_date,
             max_value=max_date
         )
+        from datetime import timedelta
+        
+        if period == 'day':
+            st.caption(f"🔍 Đang xem dữ liệu ngày: **{reference_date.strftime('%d/%m/%Y')}**")
+        elif period == 'week':
+            # Tính toán ngày Thứ 2 và Chủ Nhật của tuần chứa ngày được chọn
+            start_of_week = reference_date - timedelta(days=reference_date.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+            st.info(f"📆 **Tuần được chọn:**\nTừ **{start_of_week.strftime('%d/%m/%Y')}** đến **{end_of_week.strftime('%d/%m/%Y')}**")
+        elif period == 'month':
+            st.info(f"📊 **Tháng được chọn:**\nToàn bộ tháng **{reference_date.strftime('%m/%Y')}**")
+        elif period == 'quarter':
+            quarter = (reference_date.month - 1) // 3 + 1
+            st.info(f"📈 **Quý được chọn:**\nQuý **{quarter}** năm **{reference_date.year}**")
+        elif period == 'six_months':
+            half = "Đầu" if reference_date.month <= 6 else "Cuối"
+            st.info(f"📉 **Kỳ 6 tháng được chọn:**\n6 tháng **{half}** năm **{reference_date.year}**")
+        elif period == 'year':
+            st.info(f"📋 **Năm được chọn:**\nToàn bộ năm **{reference_date.year}**")
         
         st.session_state.selected_period = period
         st.session_state.reference_date = datetime.combine(reference_date, datetime.min.time())
@@ -263,8 +282,7 @@ else:
         # ====================================================================
         
         st.markdown("### 💡 Đánh giá trạng thái (Dựa trên VPD trung bình)")
-        
-        # Lọc dữ liệu hợp lệ (bỏ NaN và vô hạn)
+
         vpd_values = filtered_df['vpd'].dropna()
         valid_vpd = vpd_values[~vpd_values.apply(lambda x: math.isnan(x) or math.isinf(x))]
         
@@ -309,161 +327,169 @@ else:
         st.divider()
         
         # ====================================================================
-        # GỬICẢNH BÁO VPD
+        # KHỞI TẠO BỐ CỤC 2 CỘT SONG SONG: BIỂU ĐỒ (TRÁI) & CẢNH BÁO (PHẢI)
         # ====================================================================
+        col_left, col_right = st.columns([1.1, 0.9])  # Tỷ lệ hiển thị biểu đồ rộng hơn một chút cho đẹp
         
-        st.markdown("### 📧 Gửi cảnh báo VPD")
-        
-        with st.expander("⚙️ Cài đặt gửi cảnh báo", expanded=True):
-            # Cộ 1: Email
-            col1, col2 = st.columns(2)
+        # --------------------------------------------------------------------
+        # CỘT BÊN TRÁI: 📉 BIỂU ĐỒ DỮ LIỆU
+        # --------------------------------------------------------------------
+        with col_left:
+            st.markdown("### 📉 Biểu đồ dữ liệu")
             
-            with col1:
-                recipient_email = st.text_input(
-                    "📧 Email nhận cảnh báo",
-                    placeholder="your.email@gmail.com",
-                    help="Email sẽ nhận cảnh báo VPD"
-                )
+            # Chuẩn bị dữ liệu cho biểu đồ
+            chart_df = filtered_df.copy()
+            chart_df['Thời gian'] = chart_df['datetime'].dt.strftime('%d/%m %H:%M')
+            chart_df = chart_df.set_index('Thời gian')
             
-            with col2:
-                st.markdown("**ℹ️ Mốc thời gian gửi:**")
-                alert_interval = st.selectbox(
-                    "Chọn mốc gửi",
-                    options=['1 giờ', '2 giờ', '3 giờ', '6 giờ', '12 giờ', '1 ngày'],
-                    label_visibility="collapsed"
-                )
+            # Biểu đồ VPD - lọc bỏ NaN
+            st.markdown("#### VPD theo thời gian")
+            vpd_chart_data = chart_df[['vpd']].rename(columns={'vpd': 'VPD (kPa)'})
+            vpd_chart_data = vpd_chart_data.dropna()
+            if not vpd_chart_data.empty:
+                st.line_chart(vpd_chart_data, height=300)
+            else:
+                st.warning("⚠️ Không có dữ liệu VPD hợp lệ để hiển thị")
             
-            # Hàng 2: Email Gmail & Password
-            col1, col2 = st.columns(2)
+            # Thêm ghi chú về khoảng tối ưu (đổi tên biến sang dạng chart_col để tránh xung đột)
+            chart_col1, chart_col2, chart_col3 = st.columns(3)
+            with chart_col1:
+                st.markdown("""
+                **Khoảng tối ưu:** 0.8 - 1.2 kPa  
+                *Điều kiện lý tưởng cho cây*
+                """)
+            with chart_col2:
+                st.markdown("""
+                **VPD thấp:** < 0.8 kPa  
+                *Độ ẩm cao - Tăng thông thoáng*
+                """)
+            with chart_col3:
+                st.markdown("""
+                **VPD cao:** > 1.2 kPa  
+                *Độ ẩm thấp - Tăng tưới nước*
+                """)
             
-            with col1:
-                sender_email = st.text_input(
-                    "📨 Email Gmail (người gửi)",
-                    placeholder="your.gmail@gmail.com",
-                    help="Email Gmail của bạn",
-                    type="default"
-                )
+            st.markdown("#### Nhiệt độ theo thời gian")
+            temp_chart_data = chart_df[['temperature']].rename(columns={'temperature': 'Nhiệt độ (°C)'})
+            st.line_chart(temp_chart_data, height=220, color="#FF6B6B")
             
-            with col2:
-                sender_password = st.text_input(
-                    "🔑 Mật khẩu ứng dụng Gmail",
-                    placeholder="xxxx xxxx xxxx xxxx",
-                    help="Tạo mật khẩu ứng dụng tại myaccount.google.com",
-                    type="password"
-                )
+            st.markdown("#### Độ ẩm theo thời gian")
+            humidity_chart_data = chart_df[['humidity']].rename(columns={'humidity': 'Độ ẩm (%)'})
+            st.line_chart(humidity_chart_data, height=220, color="#4ECDC4")
+
+
+        # --------------------------------------------------------------------
+        # CỘT BÊN PHẢI: 📧 GỬI CẢNH BÁO VPD
+        # --------------------------------------------------------------------
+        with col_right:
+            st.markdown("### 📧 Gửi cảnh báo VPD")
             
-            # Ghi chú
-            st.info("""
-            💡 **Hướng dẫn lấy mật khẩu ứng dụng Gmail:**
-            1. Truy cập [myaccount.google.com](https://myaccount.google.com)
-            2. Chọn **Security** → **App passwords**
-            3. Chọn **Mail** và **Windows Computer**
-            4. Copy mật khẩu 16 ký tự
-            """)
-            
-            # Nút gửi
-            col1, col2, col3 = st.columns([1, 1, 2])
-            
-            with col1:
-                send_alert = st.button(
-                    "✉️ Xác nhận gửi cảnh báo",
-                    type="primary",
-                    use_container_width=True
-                )
-            
-            if send_alert:
-                # Kiểm tra dữ liệu
-                if not recipient_email:
-                    st.error("❌ Vui lòng nhập email nhận cảnh báo")
-                elif not validate_email(recipient_email):
-                    st.error("❌ Email không hợp lệ")
-                elif not sender_email or not sender_password:
-                    st.error("❌ Vui lòng nhập email Gmail và mật khẩu ứng dụng")
-                elif len(valid_vpd) == 0:
-                    st.error("❌ Không có dữ liệu VPD hợp lệ để gửi cảnh báo")
-                else:
-                    # Lấy dữ liệu gần nhất
-                    latest_row = filtered_df[filtered_df['vpd'].notna()].iloc[-1]
-                    latest_vpd = latest_row['vpd']
-                    latest_temp = latest_row['temperature']
-                    latest_humidity = latest_row['humidity']
-                    latest_assessment = get_vpd_assessment(latest_vpd)
-                    
-                    # Gửi cảnh báo
-                    with st.spinner("📤 Đang gửi cảnh báo..."):
-                        success, message = send_vpd_alert(
-                            recipient_email=recipient_email,
-                            vpd_value=latest_vpd,
-                            temperature=latest_temp,
-                            humidity=latest_humidity,
-                            assessment=latest_assessment,
-                            sender_email=sender_email,
-                            sender_password=sender_password
-                        )
-                    
-                    if success:
-                        st.success(message)
-                        st.markdown(f"""
-                        <div class="alert-box">
-                        <h4>✅ Cảnh báo đã gửi thành công!</h4>
-                        <p>📧 Gửi đến: <strong>{recipient_email}</strong></p>
-                        <p>📊 Giá trị VPD: <strong>{latest_vpd:.2f} kPa</strong></p>
-                        <p>🌡️ Nhiệt độ: <strong>{latest_temp:.2f}°C</strong></p>
-                        <p>💧 Độ ẩm: <strong>{latest_humidity:.2f}%</strong></p>
-                        <p>📌 Mốc gửi: <strong>Mỗi {alert_interval}</strong> (lưu ý: chỉ hỗ trợ gửi thủ công hiện tại)</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+            with st.expander("⚙️ Cài đặt gửi cảnh báo", expanded=True):
+                # Hàng 1: Email nhận & Mốc thời gian
+                alert_col1, alert_col2 = st.columns(2)
+                
+                with alert_col1:
+                    recipient_email = st.text_input(
+                        "📧 Email nhận cảnh báo",
+                        placeholder="your.email@gmail.com",
+                        help="Email sẽ nhận cảnh báo VPD",
+                        key="alert_rec_email" # Thêm key để tránh trùng lặp widget
+                    )
+                
+                with alert_col2:
+                    st.markdown("**ℹ️ Mốc thời gian gửi:**")
+                    alert_interval = st.selectbox(
+                        "Chọn mốc gửi",
+                        options=['1 giờ', '2 giờ', '3 giờ', '6 giờ', '12 giờ', '1 ngày'],
+                        label_visibility="collapsed",
+                        key="alert_interval_select"
+                    )
+                
+                # Hàng 2: Email Gmail & Password người gửi
+                alert_col3, alert_col4 = st.columns(2)
+                
+                with alert_col3:
+                    sender_email = st.text_input(
+                        "📨 Email Gmail (người gửi)",
+                        placeholder="your.gmail@gmail.com",
+                        help="Email Gmail của bạn",
+                        type="default",
+                        key="alert_send_email"
+                    )
+                
+                with alert_col4:
+                    sender_password = st.text_input(
+                        "🔑 Mật khẩu ứng dụng Gmail",
+                        placeholder="xxxx xxxx xxxx xxxx",
+                        help="Tạo mật khẩu ứng dụng tại myaccount.google.com",
+                        type="password",
+                        key="alert_send_pwd"
+                    )
+                
+                # Ghi chú hướng dẫn
+                st.info("""
+                💡 **Hướng dẫn lấy mật khẩu ứng dụng Gmail:**
+                1. Truy cập [myaccount.google.com](https://myaccount.google.com)
+                2. Chọn **Security** → **App passwords**
+                3. Chọn **Mail** và **Windows Computer**
+                4. Copy mật khẩu 16 ký tự
+                """)
+                
+                # Hàng nút bấm gửi
+                btn_col1, btn_col2, btn_col3 = st.columns([1.5, 1, 1.5])
+                with btn_col1:
+                    send_alert = st.button(
+                        "✉️ Xác nhận gửi cảnh báo",
+                        type="primary",
+                        use_container_width=True,
+                        key="btn_send_alert"
+                    )
+                
+                if send_alert:
+                    # Kiểm tra dữ liệu đầu vào
+                    if not recipient_email:
+                        st.error("❌ Vui lòng nhập email nhận cảnh báo")
+                    elif not validate_email(recipient_email):
+                        st.error("❌ Email không hợp lệ")
+                    elif not sender_email or not sender_password:
+                        st.error("❌ Vui lòng nhập email Gmail và mật khẩu ứng dụng")
+                    elif len(valid_vpd) == 0:
+                        st.error("❌ Không có dữ liệu VPD hợp lệ để gửi cảnh báo")
                     else:
-                        st.error(message)
-        
-        st.divider()
-        
-        # ====================================================================
-        # BIỂU ĐỒ
-        # ====================================================================
-        
-        st.markdown("### 📉 Biểu đồ dữ liệu")
-        
-        # Chuẩn bị dữ liệu cho biểu đồ
-        chart_df = filtered_df.copy()
-        chart_df['Thời gian'] = chart_df['datetime'].dt.strftime('%d/%m %H:%M')
-        chart_df = chart_df.set_index('Thời gian')
-        
-        # Biểu đồ VPD - lọc bỏ NaN
-        st.markdown("#### VPD theo thời gian")
-        vpd_chart_data = chart_df[['vpd']].rename(columns={'vpd': 'VPD (kPa)'})
-        vpd_chart_data = vpd_chart_data.dropna()
-        if not vpd_chart_data.empty:
-            st.line_chart(vpd_chart_data, height=300)
-        else:
-            st.warning("⚠️ Không có dữ liệu VPD hợp lệ để hiển thị")
-        
-        # Thêm ghi chú về khoảng tối ưu
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown("""
-            **Khoảng tối ưu:** 0.8 - 1.2 kPa  
-            *Điều kiện lý tưởng cho cây*
-            """)
-        with col2:
-            st.markdown("""
-            **VPD thấp:** < 0.8 kPa  
-            *Độ ẩm cao - Tăng thông thoáng*
-            """)
-        with col3:
-            st.markdown("""
-            **VPD cao:** > 1.2 kPa  
-            *Độ ẩm thấp - Tăng tưới nước*
-            """)
-        
-        st.markdown("#### Nhiệt độ theo thời gian")
-        temp_chart_data = chart_df[['temperature']].rename(columns={'temperature': 'Nhiệt độ (°C)'})
-        st.line_chart(temp_chart_data, height=250, color="#FF6B6B")
-        
-        st.markdown("#### Độ ẩm theo thời gian")
-        humidity_chart_data = chart_df[['humidity']].rename(columns={'humidity': 'Độ ẩm (%)'})
-        st.line_chart(humidity_chart_data, height=250, color="#4ECDC4")
-        
+                        # Lấy dữ liệu gần nhất
+                        latest_row = filtered_df[filtered_df['vpd'].notna()].iloc[-1]
+                        latest_vpd = latest_row['vpd']
+                        latest_temp = latest_row['temperature']
+                        latest_humidity = latest_row['humidity']
+                        latest_assessment = get_vpd_assessment(latest_vpd)
+                        
+                        # Thực hiện gửi cảnh báo bằng logic sẵn có
+                        with st.spinner("📤 Đang gửi cảnh báo..."):
+                            success, message = send_vpd_alert(
+                                recipient_email=recipient_email,
+                                vpd_value=latest_vpd,
+                                temperature=latest_temp,
+                                humidity=latest_humidity,
+                                assessment=latest_assessment,
+                                sender_email=sender_email,
+                                sender_password=sender_password
+                            )
+                        
+                        if success:
+                            st.success(message)
+                            st.markdown(f"""
+                            <div class="alert-box">
+                            <h4>✅ Cảnh báo đã gửi thành công!</h4>
+                            <p>📧 Gửi đến: <strong>{recipient_email}</strong></p>
+                            <p>📊 Giá trị VPD: <strong>{latest_vpd:.2f} kPa</strong></p>
+                            <p>🌡️ Nhiệt độ: <strong>{latest_temp:.2f}°C</strong></p>
+                            <p>💧 Độ ẩm: <strong>{latest_humidity:.2f}%</strong></p>
+                            <p>📌 Mốc gửi: <strong>Mỗi {alert_interval}</strong> (lưu ý: chỉ hỗ trợ gửi thủ công hiện tại)</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.error(message)
+
         st.divider()
         
         # ====================================================================
