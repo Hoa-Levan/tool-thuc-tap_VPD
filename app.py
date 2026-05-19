@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
+import math
 
 from docfile_logic import (
     parse_json_file, prepare_dataframe, filter_data_by_period,
@@ -257,47 +258,52 @@ else:
         st.divider()
         
         # ====================================================================
-        # ĐÁNH GIÁ TRẠNG THÁI
+        # ĐÁNH GIÁ TRẠNG THÁI (DÙNG VPD TRUNG BÌNH)
         # ====================================================================
         
-        st.markdown("### 💡 Đánh giá trạng thái")
+        st.markdown("### 💡 Đánh giá trạng thái (Dựa trên VPD trung bình)")
         
-        # Tính toán trạng thái hiện tại (dữ liệu gần nhất)
-        latest_row = filtered_df.iloc[-1]
-        latest_vpd = latest_row['vpd']
-        latest_assessment = get_vpd_assessment(latest_vpd)
+        # Lọc dữ liệu hợp lệ (bỏ NaN và vô hạn)
+        vpd_values = filtered_df['vpd'].dropna()
+        valid_vpd = vpd_values[~vpd_values.apply(lambda x: math.isnan(x) or math.isinf(x))]
         
-        # Hiển thị đánh giá
-        if latest_assessment['status'] == 'optimal':
-            st.markdown(
-                f"""
-                <div class="optimal">
-                    <h4>✅ {latest_assessment['description']}</h4>
-                    <p>{latest_assessment['recommendation']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        elif latest_assessment['status'] in ['low', 'high']:
-            st.markdown(
-                f"""
-                <div class="warning">
-                    <h4>⚠️ {latest_assessment['description']}</h4>
-                    <p>{latest_assessment['recommendation']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        if len(valid_vpd) > 0:
+            avg_vpd = valid_vpd.mean()
+            latest_assessment = get_vpd_assessment(avg_vpd)
+            
+            # Hiển thị đánh giá
+            if latest_assessment['status'] == 'optimal':
+                st.markdown(
+                    f"""
+                    <div class="optimal">
+                        <h4>✅ {latest_assessment['description']}</h4>
+                        <p>{latest_assessment['recommendation']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            elif latest_assessment['status'] in ['low', 'high']:
+                st.markdown(
+                    f"""
+                    <div class="warning">
+                        <h4>⚠️ {latest_assessment['description']}</h4>
+                        <p>{latest_assessment['recommendation']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f"""
+                    <div class="danger">
+                        <h4>❌ {latest_assessment['description']}</h4>
+                        <p>{latest_assessment['recommendation']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
         else:
-            st.markdown(
-                f"""
-                <div class="danger">
-                    <h4>❌ {latest_assessment['description']}</h4>
-                    <p>{latest_assessment['recommendation']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            st.error("❌ Không có dữ liệu VPD hợp lệ để đánh giá")
         
         st.divider()
         
@@ -312,10 +318,14 @@ else:
         chart_df['Thời gian'] = chart_df['datetime'].dt.strftime('%d/%m %H:%M')
         chart_df = chart_df.set_index('Thời gian')
         
-        # Biểu đồ VPD
+        # Biểu đồ VPD - lọc bỏ NaN
         st.markdown("#### VPD theo thời gian")
         vpd_chart_data = chart_df[['vpd']].rename(columns={'vpd': 'VPD (kPa)'})
-        st.line_chart(vpd_chart_data, height=300)
+        vpd_chart_data = vpd_chart_data.dropna()
+        if not vpd_chart_data.empty:
+            st.line_chart(vpd_chart_data, height=300)
+        else:
+            st.warning("⚠️ Không có dữ liệu VPD hợp lệ để hiển thị")
         
         # Thêm ghi chú về khoảng tối ưu
         col1, col2, col3 = st.columns(3)
@@ -357,10 +367,12 @@ else:
         display_df = display_df[['datetime', 'temperature', 'humidity', 'vpd', 'vpd_status']]
         display_df.columns = ['Thời gian', 'Nhiệt độ (°C)', 'Độ ẩm (%)', 'VPD (kPa)', 'Trạng thái']
         
-        # Định dạng số
-        display_df['Nhiệt độ (°C)'] = display_df['Nhiệt độ (°C)'].apply(lambda x: f"{x:.2f}")
-        display_df['Độ ẩm (%)'] = display_df['Độ ẩm (%)'].apply(lambda x: f"{x:.2f}")
-        display_df['VPD (kPa)'] = display_df['VPD (kPa)'].apply(lambda x: f"{x:.2f}")
+        # Định dạng số - xử lý NaN và Inf
+        display_df['Nhiệt độ (°C)'] = display_df['Nhiệt độ (°C)'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+        display_df['Độ ẩm (%)'] = display_df['Độ ẩm (%)'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+        display_df['VPD (kPa)'] = display_df['VPD (kPa)'].apply(
+            lambda x: f"{x:.2f}" if pd.notna(x) and not math.isinf(x) else "N/A"
+        )
         
         # Ánh xạ trạng thái
         status_map = {
@@ -393,6 +405,7 @@ st.markdown("""
     - VPD tối ưu: 0.8 - 1.2 kPa
     - VPD quá thấp (< 0.8 kPa): Độ ẩm cao, tăng nguy cơ bệnh nấm
     - VPD quá cao (> 1.2 kPa): Khô quá, cây mất nước nhanh
+    - **Đánh giá dựa trên VPD trung bình** của kỳ được chọn
     
     📧 Liên hệ: [GitHub Repository](https://github.com/Hoa-Levan/tool-thuc-tap_VPD)
 """)
