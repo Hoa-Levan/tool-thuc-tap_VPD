@@ -14,6 +14,7 @@ from docfile_logic import (
     format_date_range_display, calculate_statistics
 )
 from vpd_logic import calculate_vpd, get_vpd_assessment, categorize_vpd_status
+from canhbao_logic import send_vpd_alert, validate_email
 
 
 # ============================================================================
@@ -68,6 +69,13 @@ st.markdown("""
         border-left: 4px solid #0d6efd;
         margin: 8px 0;
     }
+    .alert-box {
+        background-color: #f0f4ff;
+        padding: 15px;
+        border-radius: 8px;
+        border: 2px solid #667eea;
+        margin: 15px 0;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -98,6 +106,7 @@ st.markdown("""
     - Nạp dữ liệu JSON từ máy
     - Tính toán VPD dựa trên nhiệt độ và độ ẩm
     - Đánh giá điều kiện và đưa ra khuyến cáo
+    - Gửi cảnh báo VPD qua Gmail
 """)
 
 st.divider()
@@ -304,6 +313,116 @@ else:
                 )
         else:
             st.error("❌ Không có dữ liệu VPD hợp lệ để đánh giá")
+        
+        st.divider()
+        
+        # ====================================================================
+        # GỬICẢNH BÁO VPD
+        # ====================================================================
+        
+        st.markdown("### 📧 Gửi cảnh báo VPD")
+        
+        with st.expander("⚙️ Cài đặt gửi cảnh báo", expanded=True):
+            # Cộ 1: Email
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                recipient_email = st.text_input(
+                    "📧 Email nhận cảnh báo",
+                    placeholder="your.email@gmail.com",
+                    help="Email sẽ nhận cảnh báo VPD"
+                )
+            
+            with col2:
+                st.markdown("**ℹ️ Mốc thời gian gửi:**")
+                alert_interval = st.selectbox(
+                    "Chọn mốc gửi",
+                    options=['1 giờ', '2 giờ', '3 giờ', '6 giờ', '12 giờ', '1 ngày'],
+                    label_visibility="collapsed"
+                )
+            
+            # Hàng 2: Email Gmail & Password
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                sender_email = st.text_input(
+                    "📨 Email Gmail (người gửi)",
+                    placeholder="your.gmail@gmail.com",
+                    help="Email Gmail của bạn",
+                    type="default"
+                )
+            
+            with col2:
+                sender_password = st.text_input(
+                    "🔑 Mật khẩu ứng dụng Gmail",
+                    placeholder="xxxx xxxx xxxx xxxx",
+                    help="Tạo mật khẩu ứng dụng tại myaccount.google.com",
+                    type="password"
+                )
+            
+            # Ghi chú
+            st.info("""
+            💡 **Hướng dẫn lấy mật khẩu ứng dụng Gmail:**
+            1. Truy cập [myaccount.google.com](https://myaccount.google.com)
+            2. Chọn **Security** → **App passwords**
+            3. Chọn **Mail** và **Windows Computer**
+            4. Copy mật khẩu 16 ký tự
+            """)
+            
+            # Nút gửi
+            col1, col2, col3 = st.columns([1, 1, 2])
+            
+            with col1:
+                send_alert = st.button(
+                    "✉️ Xác nhận gửi cảnh báo",
+                    type="primary",
+                    use_container_width=True
+                )
+            
+            if send_alert:
+                # Kiểm tra dữ liệu
+                if not recipient_email:
+                    st.error("❌ Vui lòng nhập email nhận cảnh báo")
+                elif not validate_email(recipient_email):
+                    st.error("❌ Email không hợp lệ")
+                elif not sender_email or not sender_password:
+                    st.error("❌ Vui lòng nhập email Gmail và mật khẩu ứng dụng")
+                elif len(valid_vpd) == 0:
+                    st.error("❌ Không có dữ liệu VPD hợp lệ để gửi cảnh báo")
+                else:
+                    # Lấy dữ liệu gần nhất
+                    latest_row = filtered_df[filtered_df['vpd'].notna()].iloc[-1]
+                    latest_vpd = latest_row['vpd']
+                    latest_temp = latest_row['temperature']
+                    latest_humidity = latest_row['humidity']
+                    latest_assessment = get_vpd_assessment(latest_vpd)
+                    
+                    # Gửi cảnh báo
+                    with st.spinner("📤 Đang gửi cảnh báo..."):
+                        success, message = send_vpd_alert(
+                            recipient_email=recipient_email,
+                            vpd_value=latest_vpd,
+                            temperature=latest_temp,
+                            humidity=latest_humidity,
+                            assessment=latest_assessment,
+                            sender_email=sender_email,
+                            sender_password=sender_password
+                        )
+                    
+                    if success:
+                        st.success(message)
+                        st.markdown(f"""
+                        <div class="alert-box">
+                        <h4>✅ Cảnh báo đã gửi thành công!</h4>
+                        <p>📧 Gửi đến: <strong>{recipient_email}</strong></p>
+                        <p>📊 Giá trị VPD: <strong>{latest_vpd:.2f} kPa</strong></p>
+                        <p>🌡️ Nhiệt độ: <strong>{latest_temp:.2f}°C</strong></p>
+                        <p>💧 Độ ẩm: <strong>{latest_humidity:.2f}%</strong></p>
+                        <p>📌 Mốc gửi: <strong>Mỗi {alert_interval}</strong> (lưu ý: chỉ hỗ trợ gửi thủ công hiện tại)</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.error(message)
         
         st.divider()
         
