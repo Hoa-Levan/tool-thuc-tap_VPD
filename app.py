@@ -339,8 +339,8 @@ else:
             
             # Chuẩn bị dữ liệu cho biểu đồ
             chart_df = filtered_df.copy()
-            chart_df['Thời gian'] = chart_df['datetime'].dt.strftime('%d/%m %H:%M')
-            chart_df = chart_df.set_index('Thời gian')
+            chart_df = chart_df.sort_values('datetime')
+            chart_df = chart_df.set_index('datetime')   
             
             # Biểu đồ VPD - lọc bỏ NaN
             st.markdown("#### VPD theo thời gian")
