@@ -1,8 +1,3 @@
-"""
-VPD Analysis Tool - Ứng dụng Streamlit để phân tích VPD cho cây trồng trong nhà kính
-Main Application File - Dùng thư viện mặc định Streamlit (không cần Plotly)
-"""
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -15,7 +10,6 @@ from docfile_logic import (
 )
 from vpd_logic import calculate_vpd, get_vpd_assessment, categorize_vpd_status
 from canhbao_logic import send_vpd_alert, validate_email
-
 
 # ============================================================================
 # CẤU HÌNH STREAMLIT
@@ -79,7 +73,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-
 # ============================================================================
 # KHỞI TẠO SESSION STATE
 # ============================================================================
@@ -110,7 +103,6 @@ st.markdown("""
 """)
 
 st.divider()
-
 
 # ============================================================================
 # SIDEBAR - NẠP FILE VÀ CÀI ĐẶT
