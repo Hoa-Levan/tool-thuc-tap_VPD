@@ -341,7 +341,6 @@ else:
             chart_df = filtered_df.copy()
             chart_df['datetime'] = pd.to_datetime(chart_df['datetime'])
             chart_df = chart_df.sort_values('datetime', ascending=True)
-            chart_df = chart_df.set_index('datetime')  
             vn_weekdays = {0: 'Thứ 2', 1: 'Thứ 3', 2: 'Thứ 4', 3: 'Thứ 5', 4: 'Thứ 6', 5: 'Thứ 7', 6: 'CN'}
             # Tùy theo kỳ đang chọn để hiển thị độ chi tiết giờ giấc cho gọn biểu đồ
             if st.session_state.selected_period in ['day', 'week']:
