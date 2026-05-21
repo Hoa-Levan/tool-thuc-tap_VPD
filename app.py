@@ -288,7 +288,9 @@ else:
         
         if len(valid_vpd) > 0:
             avg_vpd = valid_vpd.mean()
-            latest_assessment = get_vpd_assessment(avg_vpd)
+            avg_T  = filtered_df['temperature'].dropna().mean()
+            avg_RH = filtered_df['humidity'].dropna().mean()
+            latest_assessment = get_vpd_assessment(avg_vpd, T=avg_T, RH=avg_RH)
             
             # Hiển thị đánh giá
             if latest_assessment['status'] == 'optimal':
@@ -302,10 +304,12 @@ else:
                     unsafe_allow_html=True
                 )
             elif latest_assessment['status'] in ['low', 'high']:
+                cause_text = f"<p>🔍 <strong>Nguyên nhân:</strong> {latest_assessment['cause']}</p>" if latest_assessment['cause'] else ""
                 st.markdown(
                     f"""
                     <div class="warning">
                         <h4>⚠️ {latest_assessment['description']}</h4>
+                        {cause_text}
                         <p>{latest_assessment['recommendation']}</p>
                     </div>
                     """,
