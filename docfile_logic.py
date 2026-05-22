@@ -83,21 +83,19 @@ def parse_datetime(datetime_str):
 def extract_temperature_humidity(record: Dict) -> Tuple[Optional[float], Optional[float]]:
     """
     Trích xuất nhiệt độ và độ ẩm từ bản ghi
-    Hỗ trợ các tên cột khác nhau
+    ⭐ ƯU TIÊN: Lấy tempKK (nhiệt độ không khí) và humiKK (độ ẩm không khí)
+    ⭐ BỎ QUA: Các bản ghi không có cả tempKK và humiKK
     
     Returns:
-        (temperature, humidity) hoặc (None, None)
+        (temperature, humidity) hoặc (None, None) nếu không có dữ liệu KK
     """
     temp = None
     humidity = None
     
-    # Các tên có thể cho nhiệt độ
-    temp_keys = ['Nhiệt Độ', 'Nhiệt độ', 'nhiệt độ', 'TempKK', 'tempkk', 'Temperature', 'temperature', 'T']
+    # ⭐ ƯTIÊN: Tìm kiếm tempKK (nhiệt độ không khí)
+    temp_kk_keys = ['tempKK', 'TempKK', 'TEMPKK', 'temp_kk', 'Temp_KK']
     
-    # Các tên có thể cho độ ẩm
-    humidity_keys = ['Độ ẩm', 'độ ẩm', 'HumiKK', 'humikk', 'Humidity', 'humidity', 'RH', 'H']
-    
-    for key in temp_keys:
+    for key in temp_kk_keys:
         if key in record:
             try:
                 temp_value = float(record[key])
@@ -110,7 +108,10 @@ def extract_temperature_humidity(record: Dict) -> Tuple[Optional[float], Optiona
             except (ValueError, TypeError):
                 continue
     
-    for key in humidity_keys:
+    # ⭐ ƯTIÊN: Tìm kiếm humiKK (độ ẩm không khí)
+    humidity_kk_keys = ['humiKK', 'HumiKK', 'HUMIKK', 'humi_kk', 'Humi_KK']
+    
+    for key in humidity_kk_keys:
         if key in record:
             try:
                 humidity = float(record[key])
@@ -118,13 +119,21 @@ def extract_temperature_humidity(record: Dict) -> Tuple[Optional[float], Optiona
             except (ValueError, TypeError):
                 continue
     
-    return temp, humidity
+    # ⭐ CHỈ TRẢ VỀ NẾU CÓ CẢ TEMP VÀ HUMIDITY (BỎ QUA NẾU THIẾU)
+    if temp is not None and humidity is not None:
+        return temp, humidity
+    
+    # Nếu không có dữ liệu KK, trả về None, None (sẽ bỏ qua bản ghi này)
+    return None, None
 
 
 def prepare_dataframe(records: List[Dict]) -> pd.DataFrame:
     """
     Chuẩn bị DataFrame từ danh sách bản ghi
-    Thêm cột thời gian chuẩn hóa, nhiệt độ, độ ẩm
+    Thêm cột thời gian chuẩn hóa, nhiệt độ (tempKK), độ ẩm (humiKK)
+    
+    ⭐ CHỈ LẤY: Các bản ghi có đủ thời gian, tempKK, và humiKK
+    ⭐ BỎ QUA: Các bản ghi không có dữ liệu KK đầy đủ
     
     Args:
         records: Danh sách bản ghi từ JSON
@@ -136,6 +145,7 @@ def prepare_dataframe(records: List[Dict]) -> pd.DataFrame:
         return None
     
     processed_records = []
+    skipped_count = 0
     
     for record in records:
         # Tìm cột thời gian
@@ -148,15 +158,18 @@ def prepare_dataframe(records: List[Dict]) -> pd.DataFrame:
                 break
         
         if not datetime_str:
+            skipped_count += 1
             continue
         
         dt = parse_datetime(datetime_str)
         if not dt:
+            skipped_count += 1
             continue
         
+        # ⭐ LẤY tempKK VÀ humiKK
         temp, humidity = extract_temperature_humidity(record)
         
-        # Chỉ thêm nếu có cả nhiệt độ và độ ẩm
+        # ⭐ CHỈ THÊM NẾU CÓ CẢ HAI
         if temp is not None and humidity is not None:
             processed_records.append({
                 'datetime': dt,
@@ -164,12 +177,18 @@ def prepare_dataframe(records: List[Dict]) -> pd.DataFrame:
                 'humidity': humidity,
                 'original_record': record
             })
+        else:
+            skipped_count += 1
     
     if not processed_records:
         return None
     
     df = pd.DataFrame(processed_records)
     df = df.sort_values('datetime').reset_index(drop=True)
+    
+    # Log: In ra thông tin về dữ liệu
+    print(f"✅ Xử lý: {len(processed_records)} bản ghi có tempKK & humiKK")
+    print(f"⏭️  Bỏ qua: {skipped_count} bản ghi (thiếu tempKK hoặc humiKK)")
     
     return df
 
