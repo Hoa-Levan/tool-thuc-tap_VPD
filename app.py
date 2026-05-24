@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime
 import json
 import math
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from docfile_logic import (
     parse_json_file, prepare_dataframe, filter_data_by_period,
@@ -367,11 +369,54 @@ else:
             vpd_chart_data = chart_df[['vpd']].rename(columns={'vpd': 'VPD (kPa)'})
             vpd_chart_data = vpd_chart_data.dropna()
             if not vpd_chart_data.empty:
-                st.line_chart(vpd_chart_data, height=300)
+                fig_vpd = go.Figure()
+
+                # Dải màu ranh giới trạng thái
+                vpd_zones = [
+                    (0,   0.4, 'rgba(220, 53,  69,  0.15)', 'Quá thấp'),
+                    (0.4, 0.8, 'rgba(255, 193, 7,   0.18)', 'Thấp'),
+                    (0.8, 1.2, 'rgba(40,  167, 69,  0.18)', 'Tối ưu'),
+                    (1.2, 1.5, 'rgba(255, 193, 7,   0.18)', 'Cao'),
+                    (1.5, 3.0, 'rgba(220, 53,  69,  0.15)', 'Quá cao'),
+                ]
+                for y0, y1, color, label in vpd_zones:
+                    fig_vpd.add_hrect(
+                        y0=y0, y1=y1,
+                        fillcolor=color,
+                        line_width=0,
+                        annotation_text=label,
+                        annotation_position='left',
+                        annotation=dict(font_size=10, font_color='rgba(255,255,255,0.45)')
+                    )
+
+                # Đường VPD
+                fig_vpd.add_trace(go.Scatter(
+                    x=vpd_chart_data.index,
+                    y=vpd_chart_data['VPD (kPa)'],
+                    name='VPD (kPa)',
+                    line=dict(color='#00BFFF', width=2)
+                ))
+
+                fig_vpd.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='white'),
+                    yaxis=dict(
+                        title='VPD (kPa)',
+                        range=[0, max(3.0, vpd_chart_data['VPD (kPa)'].max() * 1.1)],
+                        gridcolor='rgba(255,255,255,0.1)'
+                    ),
+                    xaxis=dict(gridcolor='rgba(255,255,255,0.05)'),
+                    hovermode='x unified',
+                    height=300,
+                    margin=dict(l=0, r=0, t=10, b=0),
+                    showlegend=False
+                )
+                st.plotly_chart(fig_vpd, use_container_width=True)
             else:
                 st.warning("⚠️ Không có dữ liệu VPD hợp lệ để hiển thị")
             
-            # Thêm ghi chú về khoảng tối ưu (giữ nguyên logic của bạn)
+            # Thêm ghi chú về khoảng tối ưu
             chart_col1, chart_col2, chart_col3 = st.columns(3)
             with chart_col1:
                 st.markdown("""
@@ -389,13 +434,42 @@ else:
                 *Độ ẩm thấp - Tăng tưới nước*
                 """)
             
-            st.markdown("#### Nhiệt độ theo thời gian")
-            temp_chart_data = chart_df[['temperature']].rename(columns={'temperature': 'Nhiệt độ (°C)'})
-            st.line_chart(temp_chart_data, height=220, color="#FF6B6B")
-            
-            st.markdown("#### Độ ẩm theo thời gian")
-            humidity_chart_data = chart_df[['humidity']].rename(columns={'humidity': 'Độ ẩm (%)'})
-            st.line_chart(humidity_chart_data, height=220, color="#4ECDC4")
+            st.markdown("#### Nhiệt độ & Độ ẩm theo thời gian")
+            fig_th = make_subplots(specs=[[{"secondary_y": True}]])
+
+            fig_th.add_trace(
+                go.Scatter(
+                    x=chart_df.index,
+                    y=chart_df['temperature'],
+                    name='Nhiệt độ (°C)',
+                    line=dict(color='#FF6B6B', width=2)
+                ),
+                secondary_y=False
+            )
+            fig_th.add_trace(
+                go.Scatter(
+                    x=chart_df.index,
+                    y=chart_df['humidity'],
+                    name='Độ ẩm (%)',
+                    line=dict(color='#4ECDC4', width=2)
+                ),
+                secondary_y=True
+            )
+            fig_th.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                legend=dict(orientation='h', y=1.12),
+                hovermode='x unified',
+                height=280,
+                margin=dict(l=0, r=0, t=30, b=0)
+            )
+            fig_th.update_yaxes(title_text='Nhiệt độ (°C)', secondary_y=False,
+                                color='#FF6B6B', gridcolor='rgba(255,255,255,0.1)')
+            fig_th.update_yaxes(title_text='Độ ẩm (%)',    secondary_y=True,
+                                color='#4ECDC4', gridcolor='rgba(255,255,255,0.1)')
+            fig_th.update_xaxes(gridcolor='rgba(255,255,255,0.05)')
+            st.plotly_chart(fig_th, use_container_width=True)
 
 
         # --------------------------------------------------------------------
