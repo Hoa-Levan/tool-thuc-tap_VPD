@@ -28,8 +28,7 @@ def calculate_saturation_vapor_pressure(temperature_celsius):
     """
     try:
         T = float(temperature_celsius)
-        svp_hpa = 0.6108 * math.exp((17.27 * T) / (T + 237.7))
-        svp_kpa = svp_hpa / 10
+        svp_kpa = 0.6108 * math.exp((17.27 * T) / (T + 237.7))
         return svp_kpa
     except (ValueError, TypeError):
         return None
