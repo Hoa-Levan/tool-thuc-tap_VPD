@@ -17,6 +17,7 @@ from realtime_logic import (
     init_realtime_session, reset_realtime_session,
     should_update, push_new_reading,
     get_realtime_dataframe, get_realtime_stats,
+    get_realtime_table,
     UPDATE_INTERVAL
 )
 
@@ -675,6 +676,12 @@ with tab_realtime:
             hovermode='x unified', height=300,
             margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
         st.plotly_chart(fig_rt, use_container_width=True)
+        # Bảng số liệu ghi nhận
+        st.markdown("#### 📋 Bảng số liệu ghi nhận")
+        rt_table = get_realtime_table(st.session_state)
+        if rt_table is not None:
+            st.dataframe(rt_table, use_container_width=True)
+            st.caption(f"Tổng cộng {len(rt_table)} bản ghi — mới nhất hiển thị trên đầu")
     else:
         st.info("⏳ Đang chờ dữ liệu đầu tiên...")
 
