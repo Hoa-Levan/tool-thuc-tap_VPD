@@ -121,7 +121,7 @@ def extract_temperature_humidity(record: Dict) -> Tuple[Optional[float], Optiona
     
     # ⭐ CHỈ TRẢ VỀ NẾU CÓ CẢ TEMP VÀ HUMIDITY (BỎ QUA NẾU THIẾU)
     if temp is not None and humidity is not None:
-        return temp, humidity
+        return humidity, 
     
     # Nếu không có dữ liệu KK, trả về None, None (sẽ bỏ qua bản ghi này)
     return None, None
