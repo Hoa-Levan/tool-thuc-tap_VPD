@@ -221,7 +221,7 @@ with st.sidebar:
     # -----------------------------------------------------------------------
     with tab_rt:
         st.subheader("📡 Chế độ Real-time")
-        st.caption("Dữ liệu mô phỏng cảm biến, cập nhật mỗi 1 phút")
+        st.caption("Dữ liệu mô phỏng cảm biến, cập nhật mỗi 10s")
 
         rt_col1, rt_col2 = st.columns(2)
         with rt_col1:
