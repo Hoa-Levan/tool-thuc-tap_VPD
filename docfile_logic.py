@@ -100,7 +100,7 @@ def extract_temperature_humidity(record: Dict) -> Tuple[Optional[float], Optiona
             try:
                 temp_value = float(record[key])
                 # Kiểm tra xem có phải Kelvin không (thường > 100)
-                if temp_value > 100:
+                if temp_value > 274:
                     temp = temp_value - 273.15  # Chuyển K sang C
                 else:
                     temp = temp_value
