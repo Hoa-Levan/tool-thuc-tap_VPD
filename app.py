@@ -685,6 +685,87 @@ with tab_realtime:
     else:
         st.info("⏳ Đang chờ dữ liệu đầu tiên...")
 
+    # ================================================================
+    # GỬI CẢNH BÁO GMAIL (CHỈ KHI VPD KHÔNG TỐT)
+    # ================================================================
+    if rt_df is not None and not rt_df.empty:
+        st.divider()
+        st.markdown("#### 📧 Gửi cảnh báo Gmail")
+
+        # Chỉ hiện form nếu VPD đang ở mức cần cảnh báo
+        rt_status = rt_assessment['status']
+        if rt_status == 'optimal':
+            st.success("✅ VPD đang tối ưu — Không cần gửi cảnh báo")
+        else:
+            # Thông báo lý do cần gửi
+            if rt_status in ('too_low', 'too_high'):
+                st.error(f"❌ VPD bất thường ({rt_assessment['description']}) — Nên gửi cảnh báo ngay")
+            else:
+                st.warning(f"⚠️ VPD chưa tối ưu ({rt_assessment['description']}) — Có thể gửi cảnh báo")
+
+            with st.expander("⚙️ Cài đặt gửi cảnh báo Gmail", expanded=True):
+                rt_alert_col1, rt_alert_col2 = st.columns(2)
+                with rt_alert_col1:
+                    rt_recipient_email = st.text_input(
+                        "📧 Email nhận cảnh báo",
+                        placeholder="your.email@gmail.com",
+                        key="rt_alert_rec_email"
+                    )
+                with rt_alert_col2:
+                    rt_sender_email = st.text_input(
+                        "📨 Email Gmail (người gửi)",
+                        placeholder="your.gmail@gmail.com",
+                        key="rt_alert_send_email"
+                    )
+
+                rt_sender_password = st.text_input(
+                    "🔑 Mật khẩu ứng dụng Gmail",
+                    placeholder="xxxx xxxx xxxx xxxx",
+                    type="password",
+                    key="rt_alert_send_pwd"
+                )
+
+                rt_btn_col1, rt_btn_col2 = st.columns([1.5, 2])
+                with rt_btn_col1:
+                    rt_send_alert = st.button(
+                        "✉️ Gửi cảnh báo ngay",
+                        type="primary",
+                        use_container_width=True,
+                        key="btn_rt_send_alert"
+                    )
+
+                if rt_send_alert:
+                    if not rt_recipient_email:
+                        st.error("❌ Vui lòng nhập email nhận")
+                    elif not validate_email(rt_recipient_email):
+                        st.error("❌ Email không hợp lệ")
+                    elif not rt_sender_email or not rt_sender_password:
+                        st.error("❌ Vui lòng nhập email Gmail và mật khẩu ứng dụng")
+                    else:
+                        with st.spinner("📤 Đang gửi cảnh báo..."):
+                            success, message = send_vpd_alert(
+                                recipient_email=rt_recipient_email,
+                                vpd_value=latest_vpd,
+                                temperature=latest_T,
+                                humidity=latest_RH,
+                                assessment=rt_assessment,
+                                sender_email=rt_sender_email,
+                                sender_password=rt_sender_password
+                            )
+                        if success:
+                            st.success(message)
+                            st.markdown(f"""
+                            <div class="alert-box">
+                            <h4>✅ Cảnh báo Real-time đã gửi!</h4>
+                            <p>📧 Gửi đến: <strong>{rt_recipient_email}</strong></p>
+                            <p>📊 VPD: <strong>{latest_vpd:.2f} kPa</strong></p>
+                            <p>🌡️ Nhiệt độ: <strong>{latest_T:.1f}°C</strong></p>
+                            <p>💧 Độ ẩm: <strong>{latest_RH:.1f}%</strong></p>
+                            <p>⚠️ Trạng thái: <strong>{rt_assessment['description']}</strong></p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.error(message)
     # Auto-refresh chỉ khi đang chạy
     if st.session_state.rt_running:
         import time
