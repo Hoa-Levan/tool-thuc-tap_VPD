@@ -83,47 +83,46 @@ def parse_datetime(datetime_str):
 def extract_temperature_humidity(record: Dict) -> Tuple[Optional[float], Optional[float]]:
     """
     Trích xuất nhiệt độ và độ ẩm từ bản ghi
-    ⭐ ƯU TIÊN: Lấy tempKK (nhiệt độ không khí) và humiKK (độ ẩm không khí)
-    ⭐ BỎ QUA: Các bản ghi không có cả tempKK và humiKK
+    ⭐ LƯU Ý: Dữ liệu thực tế trong file JSON bị hoán đổi nhãn:
+        - humiKK → thực ra là nhiệt độ (temperature)
+        - tempKK → thực ra là độ ẩm (humidity)
     
     Returns:
-        (temperature, humidity) hoặc (None, None) nếu không có dữ liệu KK
+        (temperature, humidity) hoặc (None, None) nếu không có dữ liệu
     """
     temp = None
     humidity = None
-    
-    # ⭐ ƯTIÊN: Tìm kiếm tempKK (nhiệt độ không khí)
-    temp_kk_keys = ['tempKK', 'TempKK', 'TEMPKK', 'temp_kk', 'Temp_KK']
-    
-    for key in temp_kk_keys:
+
+    # ⭐ humiKK trong file = nhiệt độ thực tế
+    temp_actual_keys = ['humiKK', 'HumiKK', 'HUMIKK', 'humi_kk', 'Humi_KK']
+
+    for key in temp_actual_keys:
         if key in record:
             try:
                 temp_value = float(record[key])
-                # Kiểm tra xem có phải Kelvin không (thường > 100)
+                # Kiểm tra xem có phải Kelvin không (thường > 274)
                 if temp_value > 274:
-                    temp = temp_value - 273.15  # Chuyển K sang C
+                    temp = temp_value - 273.15
                 else:
                     temp = temp_value
                 break
             except (ValueError, TypeError):
                 continue
-    
-    # ⭐ ƯTIÊN: Tìm kiếm humiKK (độ ẩm không khí)
-    humidity_kk_keys = ['humiKK', 'HumiKK', 'HUMIKK', 'humi_kk', 'Humi_KK']
-    
-    for key in humidity_kk_keys:
+
+    # ⭐ tempKK trong file = độ ẩm thực tế
+    humidity_actual_keys = ['tempKK', 'TempKK', 'TEMPKK', 'temp_kk', 'Temp_KK']
+
+    for key in humidity_actual_keys:
         if key in record:
             try:
                 humidity = float(record[key])
                 break
             except (ValueError, TypeError):
                 continue
-    
-    # ⭐ CHỈ TRẢ VỀ NẾU CÓ CẢ TEMP VÀ HUMIDITY (BỎ QUA NẾU THIẾU)
+
     if temp is not None and humidity is not None:
-        return humidity, 
-    
-    # Nếu không có dữ liệu KK, trả về None, None (sẽ bỏ qua bản ghi này)
+        return temp, humidity
+
     return None, None
 
 
